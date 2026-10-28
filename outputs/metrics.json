@@ -1,0 +1,134 @@
+{
+  "quality": {
+    "rows_raw": 161583,
+    "duplicates_player_version": 0,
+    "missing_value_or_club": 2065,
+    "league_name_clashes": 12877,
+    "unknown_position": 0,
+    "missing_attrs_cells": 32242,
+    "value_skew": 8.504224260717717,
+    "rows_clean": 159518,
+    "by_version": {
+      "15": 15871,
+      "16": 16371,
+      "17": 17256,
+      "18": 17687,
+      "19": 17845,
+      "20": 18233,
+      "21": 18646,
+      "22": 19165,
+      "23": 18444
+    }
+  },
+  "weights": {
+    "GK": {
+      "goalkeeping_reflexes": 3.0,
+      "goalkeeping_diving": 3.0,
+      "goalkeeping_positioning": 2.0,
+      "goalkeeping_handling": 2.0,
+      "goalkeeping_kicking": 2.0,
+      "skill_long_passing": 2.0,
+      "mentality_composure": 1.0
+    },
+    "CB": {
+      "defending_marking_awareness": 3.329026202120959,
+      "defending_standing_tackle": 3.184284116062466,
+      "attacking_heading_accuracy": 3.147996786428541,
+      "power_jumping": 2.272596134142916,
+      "power_strength": 2.484460595402795,
+      "mentality_interceptions": 2.24059674121918,
+      "defending_sliding_tackle": 1.051513835279807,
+      "attacking_short_passing": 0.8903679300892245,
+      "mentality_composure": 1.0337342776996392,
+      "movement_agility": 0.20169416495637502,
+      "power_stamina": 0.1865939061739759,
+      "mentality_aggression": 0.17249206782830406
+    },
+    "FB": {
+      "movement_sprint_speed": 2.2919989767448494,
+      "movement_acceleration": 2.256440305437326,
+      "power_stamina": 3.5597817185219274,
+      "attacking_crossing": 2.865518000232578,
+      "defending_standing_tackle": 2.1228560773749776,
+      "defending_marking_awareness": 1.1096754007069862,
+      "mentality_interceptions": 1.12029837060959,
+      "attacking_short_passing": 0.8903679300892245,
+      "power_strength": 0.24223029770139753,
+      "movement_agility": 0.20169416495637502,
+      "mentality_aggression": 0.17249206782830406
+    },
+    "DM": {
+      "mentality_interceptions": 3.3608951118287695,
+      "defending_standing_tackle": 3.184284116062466,
+      "attacking_short_passing": 1.780735860178449,
+      "skill_long_passing": 1.9244796839794915,
+      "power_stamina": 2.3731878123479517,
+      "power_strength": 1.2422302977013975,
+      "mentality_composure": 1.0337342776996392,
+      "mentality_aggression": 2.344984135656608,
+      "movement_agility": 0.20169416495637502
+    },
+    "CM": {
+      "power_stamina": 3.5597817185219274,
+      "attacking_short_passing": 1.780735860178449,
+      "mentality_vision": 2.0116771137683807,
+      "skill_ball_control": 1.9842957612193377,
+      "mentality_aggression": 2.344984135656608,
+      "power_long_shots": 1.0151183818852938,
+      "mentality_interceptions": 1.12029837060959,
+      "skill_fk_accuracy": 0.9422167056665703,
+      "power_strength": 0.24223029770139753,
+      "movement_agility": 0.20169416495637502
+    },
+    "W": {
+      "movement_sprint_speed": 3.437998465117274,
+      "movement_acceleration": 2.256440305437326,
+      "skill_dribbling": 1.9128469482043342,
+      "attacking_finishing": 2.1629638966112794,
+      "attacking_crossing": 1.9103453334883855,
+      "power_stamina": 2.3731878123479517,
+      "movement_agility": 1.201694164956375,
+      "mentality_positioning": 1.026450958874389,
+      "power_strength": 0.24223029770139753,
+      "mentality_aggression": 0.17249206782830406
+    },
+    "ST": {
+      "attacking_finishing": 3.2444458449169193,
+      "mentality_positioning": 3.079352876623167,
+      "attacking_heading_accuracy": 2.098664524285694,
+      "power_strength": 2.484460595402795,
+      "power_jumping": 1.136298067071458,
+      "power_shot_power": 1.0167440225528013,
+      "mentality_composure": 2.0674685553992784,
+      "mentality_penalties": 0.8885240034419535,
+      "movement_agility": 0.20169416495637502,
+      "power_stamina": 0.1865939061739759,
+      "mentality_aggression": 0.17249206782830406
+    }
+  },
+  "need_groups": [
+    "DM",
+    "GK",
+    "CM",
+    "ST",
+    "FB"
+  ],
+  "depth_groups": [
+    "ST",
+    "FB"
+  ],
+  "growth": {
+    "classification": {
+      "base_rate": 0.13326118883821597,
+      "AUC: только возраст": 0.7173092406208158,
+      "AUC: Gradient Boosting": 0.7672639977255435
+    },
+    "coverage_80": 0.7932287238154132,
+    "n": {
+      "train": 73637,
+      "val": 13158,
+      "test": 12937
+    },
+    "best_iter": 200
+  }
+}

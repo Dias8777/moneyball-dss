@@ -1,0 +1,16 @@
+# Данные (98 MB) — скачиваются с Kaggle, в репозиторий не кладём
+data/
+outputs/*.parquet
+
+# Секреты: никогда не коммитить ключи
+.env
+*.env
+kaggle.json
+access_token
+.streamlit/secrets.toml
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+.claude/
