@@ -41,7 +41,7 @@ def style_profile(profile: pd.Series):
     ax.barh([SHORT(a) for a in p.index], p.values, color=[BLUE if v > 0 else CONTEXT for v in p.values],
             height=0.6)
     ax.axvline(0, color=BASE, lw=1)
-    ax.set_xlabel("z-score относительно игроков той же позиции в АПЛ")
+    ax.set_xlabel(f"z-score относительно игроков той же позиции ({C.LEAGUE})")
     ax.set_title(f"Стиль {C.CLUB}: чем игроки отличаются от лиги", pad=10)
     ax.grid(axis="y", visible=False)
     _save(fig, "01_style_profile")
@@ -55,8 +55,8 @@ def needs(need: pd.DataFrame):
     ax.set_yticks(y, [f"{n}  (место {r})" for n, r in zip(d.name, d.league_rank)])
     for yi, g in zip(y, d.gap):
         ax.text(g + 0.1, yi, f"{g:.1f}", va="center", color=INK2, fontsize=9)
-    ax.set_xlabel("Отставание стартового уровня от 6-го клуба АПЛ, пункты рейтинга")
-    ax.set_title("Где Брентфорду не хватает качества", pad=10)
+    ax.set_xlabel(f"Отставание стартового уровня от цели ({C.TARGET_LABEL}), пункты рейтинга")
+    ax.set_title(f"Где {C.CLUB_DAT} не хватает качества", pad=10)
     ax.grid(axis="y", visible=False)
     _save(fig, "02_needs")
 
@@ -66,7 +66,7 @@ def depth(need: pd.DataFrame):
     fig, ax = plt.subplots(figsize=(7, 3.8))
     y = np.arange(len(d))
     ax.barh(y + 0.16, d.depth_drop, height=0.3, color=ORANGE, label=C.CLUB)
-    ax.barh(y - 0.16, d.league_depth_drop, height=0.3, color=CONTEXT, label="Медиана АПЛ")
+    ax.barh(y - 0.16, d.league_depth_drop, height=0.3, color=CONTEXT, label="Медиана клубов-ориентиров")
     ax.set_yticks(y, d.index)
     ax.set_xlabel("Насколько первый запасной слабее стартера, пункты")
     ax.set_title("Глубина состава: где нет замены", pad=10)
@@ -152,7 +152,7 @@ def league_moves(moves: pd.DataFrame):
     ax.barh([f"{i}  (n={int(n)})" for i, n in zip(d.index, d.n)], d.resid, color=col, height=0.6)
     ax.axvline(0, color=BASE, lw=1)
     ax.set_xlabel("Средний остаток Δoverall после перехода (факт − прогноз)")
-    ax.set_title("Что происходит с рейтингом после перехода в АПЛ", pad=10)
+    ax.set_title(f"Что происходит с рейтингом после перехода в {C.LEAGUE}", pad=10)
     ax.grid(axis="y", visible=False)
     _save(fig, "09_league_moves")
 
@@ -203,7 +203,7 @@ def candidates(cand: pd.DataFrame, plan: pd.DataFrame, groups):
     for r in plan.itertuples():
         ax.annotate(r.short_name, (r.fee / 1e6, r.gain), xytext=(7, 4), textcoords="offset points",
                     fontsize=9, color=INK)
-    ax.set_xlabel("Оценка трансфера, €M (с премией АПЛ)")
+    ax.set_xlabel("Оценка трансфера, €M (с премией к оценке FIFA)")
     ax.set_ylabel("Прирост к стартовому составу, пункты")
     ax.set_title("Кандидаты: прирост качества против цены", pad=10)
     ax.legend(fontsize=8, loc="upper left", markerscale=1.5)

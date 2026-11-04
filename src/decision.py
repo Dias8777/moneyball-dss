@@ -29,12 +29,13 @@ def club_strength(cur: pd.DataFrame, top_n=18) -> pd.Series:
               .groupby("club_name").overall.mean()
 
 
-def availability(cur: pd.DataFrame, club=C.CLUB, margin=2.0, wage_mult=2.0) -> pd.Series:
+def availability(cur: pd.DataFrame, club=None, margin=2.0, wage_mult=2.0) -> pd.Series:
     """
     Правила реалистичности (без них система советует купить звёзд у грандов):
       * клуб сильнее нашего (> +margin по среднему рейтингу) не продаёт игроков основы;
       * зарплата игрока не больше wage_mult × максимальной зарплаты в нашем клубе.
     """
+    club = club or C.CLUB
     s = club_strength(cur)
     stronger = cur.club_name.map(s) > s[club] + margin
     starter = ~cur.club_position.isin(["SUB", "RES"])
@@ -42,9 +43,10 @@ def availability(cur: pd.DataFrame, club=C.CLUB, margin=2.0, wage_mult=2.0) -> p
     return ~(stronger & starter) & (cur.wage_eur <= wage_mult * max_wage)
 
 
-def build_candidates(cur: pd.DataFrame, st: pd.DataFrame, club=C.CLUB, max_age=29,
+def build_candidates(cur: pd.DataFrame, st: pd.DataFrame, club=None, max_age=29,
                      fee_premium=C.FEE_PREMIUM, contract_years=C.CONTRACT_YEARS,
                      realistic=True) -> pd.DataFrame:
+    club = club or C.CLUB
     club_wage = cur[cur.club_name == club].wage_eur.median()
     c = cur[(cur.club_name != club) & (cur.age <= max_age) & (cur.club_loaned_from.isna())
             & ~cur.league_name.isin(C.UNLICENSED_LEAGUES)].copy()
@@ -58,8 +60,10 @@ def build_candidates(cur: pd.DataFrame, st: pd.DataFrame, club=C.CLUB, max_age=2
     inc = incumbents(st)
     c["incumbent_next"] = c.group.map(inc)
     c["gain"] = (c.rating_next - c.incumbent_next).clip(lower=0)
-    # для позиций без замены ценен и сильный запасной: половина прироста над текущим дублёром
-    c["depth_gain"] = 0.5 * (c.rating_next - c.group.map(backups(st))).clip(lower=0)
+    # для позиций без замены ценен и сильный запасной: доля прироста над текущим дублёром
+    # (полевой дублёр играет ~половину минут, запасной вратарь — почти никогда)
+    share = np.where(c.group == "GK", 0.15, 0.5)
+    c["depth_gain"] = share * (c.rating_next - c.group.map(backups(st))).clip(lower=0)
     c["net_value"] = c.resale_2y - c.fee
     return c
 
@@ -115,8 +119,9 @@ def topsis(df: pd.DataFrame, w=DEFAULT_WEIGHTS) -> pd.Series:
     return pd.Series(dn / (dp + dn + 1e-12), index=df.index)
 
 
-def rank_group(cand: pd.DataFrame, group: str, budget=C.BUDGET_FEE_EUR, w=DEFAULT_WEIGHTS,
+def rank_group(cand: pd.DataFrame, group: str, budget=None, w=DEFAULT_WEIGHTS,
                only_upgrades=True, n=15) -> pd.DataFrame:
+    budget = budget or C.BUDGET_FEE_EUR
     d = cand[(cand.group == group) & (cand.fee <= budget)]
     if only_upgrades:
         d = d[d.gain > 0]
@@ -146,9 +151,9 @@ def weight_sensitivity(cand: pd.DataFrame, group: str, n_sim=300, conc=30, top=5
 # ---------------------------------------------------------------------------
 # Оптимизация набора трансферов
 # ---------------------------------------------------------------------------
-def optimize(cand: pd.DataFrame, budget=C.BUDGET_FEE_EUR, wage_budget=C.BUDGET_WAGE_WEEK_EUR,
+def optimize(cand: pd.DataFrame, budget=None, wage_budget=None,
              groups=None, max_signings=3, per_group=1, beta=0.5, risk_aversion=1.0,
-             sales_income=0.0, depth_groups=()) -> pd.DataFrame:
+             sales_income=0.0, depth_groups=(), core_groups=(), core_min=0) -> pd.DataFrame:
     """
     MILP:  max Σ xᵢ·uᵢ
            uᵢ = gainᵢ·(1 − risk_aversion·p_declineᵢ) + beta·net_valueᵢ / €10M
@@ -157,7 +162,11 @@ def optimize(cand: pd.DataFrame, budget=C.BUDGET_FEE_EUR, wage_budget=C.BUDGET_W
            Σ wage_newᵢ·xᵢ ≤ wage_budget
            Σ_{i∈g} xᵢ ≤ per_group  (новичок заменяет слабейшего стартового игрока группы)
            Σ xᵢ ≤ max_signings,  xᵢ ∈ {0,1}
+           Σ_{i∈core_groups} xᵢ ≥ core_min  (план обязан закрыть хотя бы одну главную дыру:
+           иначе у топ-клуба дешёвые дублёры всегда выгоднее дорогих звёзд)
     """
+    budget = C.BUDGET_FEE_EUR if budget is None else budget
+    wage_budget = C.BUDGET_WAGE_WEEK_EUR if wage_budget is None else wage_budget
     d = cand[cand.fee <= budget + sales_income].copy()
     if groups is not None:
         d = d[d.group.isin(groups)]
@@ -177,7 +186,12 @@ def optimize(cand: pd.DataFrame, budget=C.BUDGET_FEE_EUR, wage_budget=C.BUDGET_W
     for g in gs:
         A.append((d.group == g).astype(float).values)
         ub.append(per_group)
-    res = milp(c=-u.values, constraints=LinearConstraint(np.vstack(A), -np.inf, ub),
+    lb = [-np.inf] * len(ub)
+    if core_min and d.group.isin(core_groups).any():
+        A.append(d.group.isin(core_groups).astype(float).values)
+        ub.append(np.inf)
+        lb.append(core_min)
+    res = milp(c=-u.values, constraints=LinearConstraint(np.vstack(A), lb, ub),
                integrality=np.ones(len(d)), bounds=Bounds(0, 1))
     if res.x is None:
         return d.iloc[0:0]

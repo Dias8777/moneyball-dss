@@ -1,7 +1,8 @@
 """
 Полный пайплайн: данные -> аудит -> модели -> решения. Результаты сохраняются в outputs/.
-Запуск:  python run_pipeline.py
+Запуск:  python run_pipeline.py --club brentford|liverpool|psg|all
 """
+import argparse
 import json
 import time
 
@@ -10,10 +11,11 @@ import pandas as pd
 from src import audit, config as C, data, decision, figures, models
 
 
-def main():
+def main(key: str):
+    C.use(key)
+    print(f"===== {C.CLUB} ({C.LEAGUE}) -> {C.OUT}")
     t0 = time.time()
-    C.OUT.mkdir(exist_ok=True)
-    C.FIG.mkdir(exist_ok=True)
+    C.FIG.mkdir(parents=True, exist_ok=True)
     log = lambda m: print(f"[{time.time() - t0:5.1f}s] {m}")
 
     # --- 1. Данные ---------------------------------------------------------
@@ -38,7 +40,7 @@ def main():
     gm = models.fit_growth_final(pairs)
     cur = cur.join(models.predict_growth(gm, cur))
     moves = models.league_move_effect(pairs)
-    log("переход в АПЛ (остаток):\n" + moves.round(2).to_string())
+    log(f"переход в {C.LEAGUE} (остаток):\n" + moves.round(2).to_string())
 
     # --- 4. Модель цены ---------------------------------------------------
     value_eval = models.evaluate_value(cur)
@@ -52,7 +54,7 @@ def main():
     sim_eval = models.evaluate_similarity(df, cur)
     log("похожие игроки:\n" + sim_eval.round(3).to_string())
 
-    # --- 6. Аудит Брентфорда ---------------------------------------------
+    # --- 6. Аудит клуба ---------------------------------------------
     table = audit.league_position_table(cur)
     need = audit.needs(table)
     st = audit.squad_actions(audit.starters(audit.squad(cur)))
@@ -62,8 +64,10 @@ def main():
     need_groups = audit.need_groups(need)
     cand = decision.build_candidates(cur, st)
     depth_groups = [g for g in need_groups if g not in need.group.head(3).tolist()]
-    plan = decision.optimize(cand, groups=need_groups, depth_groups=depth_groups, max_signings=4)
-    scen = decision.budget_scenarios(cand, need_groups, depth_groups=depth_groups, max_signings=4)
+    core = dict(depth_groups=depth_groups, max_signings=4,
+                core_groups=need.group.head(3).tolist(), core_min=1)
+    plan = decision.optimize(cand, groups=need_groups, **core)
+    scen = decision.budget_scenarios(cand, need_groups, **core)
     gems = decision.hidden_gems(cand, need_groups)
     ranks = {g: decision.rank_group(cand, g) for g in need_groups}
     sens = {g: decision.weight_sensitivity(cand, g) for g in need_groups}
@@ -78,7 +82,7 @@ def main():
     cur.to_parquet(C.OUT / "players_23.parquet", index=False)
     pairs[["player_id", "fifa_version", "short_name", "age", "overall", "delta", "group",
            "league_name", "league_next"]].to_parquet(C.OUT / "pairs.parquet", index=False)
-    st.to_csv(C.OUT / "brentford_squad.csv", index=False)
+    st.to_csv(C.OUT / "squad.csv", index=False)
     need.to_csv(C.OUT / "needs.csv", index=False)
     table.to_csv(C.OUT / "league_position_table.csv", index=False)
     profile.rename("z").to_csv(C.OUT / "style_profile.csv")
@@ -109,4 +113,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--club", default="all", choices=[*C.CLUBS, "all"])
+    a = ap.parse_args()
+    for k in (C.CLUBS if a.club == "all" else [a.club]):
+        main(k)

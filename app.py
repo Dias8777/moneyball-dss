@@ -10,7 +10,11 @@ import streamlit as st
 
 from src import audit, config as C, decision, models, report
 
-st.set_page_config(page_title="Moneyball DSS · Brentford", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="Moneyball DSS", page_icon="⚽", layout="wide")
+
+st.sidebar.title("⚽ Moneyball DSS")
+club_key = st.sidebar.selectbox("Клуб", list(C.CLUBS), format_func=lambda k: C.CLUBS[k]["name"])
+C.use(club_key)
 
 BLUE, ORANGE, GREY = "#2a78d6", "#eb6834", "#c3c2b7"
 M = lambda x: f"€{x / 1e6:,.1f}M"
@@ -20,41 +24,42 @@ M = lambda x: f"€{x / 1e6:,.1f}M"
 # Данные
 # ---------------------------------------------------------------------------
 @st.cache_data
-def load():
+def load(key):
     cur = pd.read_parquet(C.OUT / "players_23.parquet")
-    squad = pd.read_csv(C.OUT / "brentford_squad.csv")
+    squad = pd.read_csv(C.OUT / "squad.csv")
     need = pd.read_csv(C.OUT / "needs.csv")
     profile = pd.read_csv(C.OUT / "style_profile.csv", index_col=0).z
     return cur, squad, need, profile
 
 
 @st.cache_data
-def candidates(max_age, fee_premium, realistic):
-    cur, squad, _, _ = load()
+def candidates(key, max_age, fee_premium, realistic):
+    cur, squad, _, _ = load(key)
     return decision.build_candidates(cur, squad, max_age=max_age, fee_premium=fee_premium,
                                      realistic=realistic)
 
 
 try:
-    cur, squad, need, profile = load()
+    cur, squad, need, profile = load(club_key)
 except FileNotFoundError:
-    st.error("Нет результатов пайплайна. Сначала выполните `python run_pipeline.py`.")
+    st.error(f"Нет результатов для клуба. Выполните `python run_pipeline.py --club {club_key}`.")
     st.stop()
 
 need_groups = audit.need_groups(need)
-depth_groups = [g for g in need_groups if g not in need.group.head(3).tolist()]
+core_groups = need.group.head(3).tolist()
+depth_groups = [g for g in need_groups if g not in core_groups]
+CORE = dict(core_groups=core_groups, core_min=1)
 
-st.sidebar.title("⚽ Moneyball DSS")
-st.sidebar.caption(f"{C.CLUB} · FIFA 23 (сентябрь 2022)")
+st.sidebar.caption(f"{C.CLUB} · {C.LEAGUE} · FIFA 23 (сентябрь 2022)  \n{C.CLUBS[club_key]['note']}")
 page = st.sidebar.radio("Раздел", ["Обзор", "Аудит состава", "Кандидаты (MCDA)", "Похожие игроки",
                                    "Оптимизатор трансферов", "Проверка качества"])
 st.sidebar.divider()
 st.sidebar.subheader("Допущения")
 max_age = st.sidebar.slider("Максимальный возраст покупки", 18, 33, 29)
-fee_premium = st.sidebar.slider("Премия к оценке FIFA (клубы АПЛ переплачивают)", 1.0, 2.0, C.FEE_PREMIUM, 0.05)
+fee_premium = st.sidebar.slider("Премия к оценке FIFA (реальные цены выше)", 1.0, 2.0, C.FEE_PREMIUM, 0.05)
 realistic = st.sidebar.checkbox("Только реалистичные цели", True,
                                 help="Сильные клубы не продают игроков основы; зарплата ≤ 2× максимума клуба")
-cand = candidates(max_age, fee_premium, realistic)
+cand = candidates(club_key, max_age, fee_premium, realistic)
 
 SHOW = {"short_name": "Игрок", "club_name": "Клуб", "league_name": "Лига", "age": "Возраст",
         "overall": "Overall", "potential": "Потенциал", "fit_pct": "Стиль, %", "style": "Тип",
@@ -73,24 +78,25 @@ def table(d, cols=None, extra=None):
 
 # ---------------------------------------------------------------------------
 if page == "Обзор":
-    st.title("Moneyball 2.0: кого купить Брентфорду")
+    st.title(f"Moneyball 2.0: кого купить {C.CLUB_DAT}")
     st.markdown(
-        "> **Вопрос:** каких игроков Брентфорд может купить в пределах бюджета, чтобы закрыть "
+        f"> **Вопрос:** каких игроков {C.CLUB_RU} может купить в пределах бюджета, чтобы закрыть "
         "слабые позиции, — чтобы они подходили под стиль команды, росли в цене и не провалились?\n\n"
+        f"**Цель клуба:** {C.GOAL}; ориентир по позициям — {C.TARGET_LABEL}.  \n"
         "**Пользователь:** спортивный директор. **Решение:** список покупок, продаж и аренд "
         "на трансферное окно.")
     c = st.columns(4)
     c[0].metric("Игроков в базе (FIFA 23)", f"{len(cur):,}".replace(",", " "))
     c[1].metric("Бюджет (допущение)", M(C.BUDGET_FEE_EUR))
     c[2].metric("Слабейшая позиция", need.iloc[0]["name"],
-                help=f"Отставание от 6-го клуба АПЛ: {need.iloc[0].gap:.1f} пункта")
-    plan = decision.optimize(cand, groups=need_groups, depth_groups=depth_groups, max_signings=4)
+                help=f"Отставание от цели ({C.TARGET_LABEL}): {need.iloc[0].gap:.1f} пункта")
+    plan = decision.optimize(cand, groups=need_groups, depth_groups=depth_groups, max_signings=4, **CORE)
     c[3].metric("Рекомендовано покупок", len(plan), M(plan.fee.sum()))
     st.subheader("Рекомендуемый план (базовые настройки)")
     table(plan)
     st.markdown(
         "**Как работает система**\n"
-        "1. **Аудит:** стиль клуба из данных, сравнение каждой позиции с остальными 19 клубами АПЛ.\n"
+        f"1. **Аудит:** стиль клуба из данных, сравнение каждой позиции с клубами-ориентирами ({', '.join(C.BENCH_LEAGUES)}).\n"
         "2. **Role fit:** оценка игрока под требования роли, сдвинутые в сторону стиля клуба.\n"
         "3. **Модель развития:** прогноз рейтинга на следующий сезон, риск спада, 80%-интервал.\n"
         "4. **Похожие игроки:** дешёвые аналоги дорогих игроков по стилевому профилю.\n"
@@ -109,17 +115,18 @@ elif page == "Аудит состава":
                                hovertemplate="%{y}: %{x:+.2f}<extra></extra>"))
         fig.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0), xaxis_title="z-score к лиге (внутри позиции)")
         st.plotly_chart(fig, use_container_width=True)
-        st.caption("Брентфорд выделяется физикой, выносливостью и агрессией (прессинг, прямой футбол), "
-                   "но уступает лиге в технике передачи. Эти особенности усиливают веса ролей.")
+        nm = lambda idx: ", ".join(i.split("_", 1)[1].replace("_", " ") for i in idx)
+        st.caption(f"Сильнее лиги: {nm(profile.head(4).index)}. Слабее лиги: {nm(profile.tail(3).index)}. "
+                   "Эти особенности усиливают веса ролей при оценке кандидатов.")
     with b:
-        st.subheader("Позиции против лиги")
-        n = need.rename(columns={"name": "Позиция", "league_rank": "Место в АПЛ", "club_start": "Старт",
-                                 "target_top6": "Цель (6-й клуб)", "gap": "Отставание",
-                                 "depth_drop": "Провал при замене", "league_depth_drop": "…медиана АПЛ"})
+        st.subheader("Позиции против клубов-ориентиров")
+        n = need.rename(columns={"name": "Позиция", "league_rank": "Место среди ориентиров", "club_start": "Старт",
+                                 "target": f"Цель ({C.TARGET_LABEL})", "gap": "Отставание",
+                                 "depth_drop": "Провал при замене", "league_depth_drop": "…медиана"})
         st.dataframe(n.drop(columns=["group", "club_depth"]).style.format(precision=1),
                      hide_index=True, use_container_width=True)
         st.info(f"Потребности: **{', '.join(C.GROUP_NAMES[g] for g in need_groups)}**. "
-                f"Первые три — по отставанию от топ-6, остальные — из-за отсутствия замены.")
+                f"Первые три — по отставанию от цели (план обязан закрыть хотя бы одну), остальные — из-за слабой замены.")
     st.subheader("Состав и рекомендации экспертных правил")
     s = squad[["short_name", "group", "age", "overall", "club_rating", "role", "contract_years_left",
                "value_eur", "action", "reason"]].copy()
@@ -138,7 +145,8 @@ elif page == "Кандидаты (MCDA)":
     with c1:
         g = st.selectbox("Позиция", list(C.FORMATION), index=list(C.FORMATION).index(need_groups[0]),
                          format_func=lambda x: C.GROUP_NAMES[x] + (" ⚠️" if x in need_groups else ""))
-        budget = st.slider("Максимальная цена, €M", 1, 100, 40) * 1e6
+        bmax = int(C.BUDGET_FEE_EUR / 1e6)
+        budget = st.slider("Максимальная цена, €M", 1, bmax, int(bmax * 2 / 3)) * 1e6
         only_up = st.checkbox("Только те, кто усиливает старт", True)
         st.markdown("**Веса критериев**")
         w = {k: st.slider(v[0], 0.0, 1.0, decision.DEFAULT_WEIGHTS[k], 0.05, key=k)
@@ -210,19 +218,22 @@ elif page == "Оптимизатор трансферов":
     st.latex(r"\max \sum_i x_i\big[\text{gain}_i(1-\rho\,p^{\text{спад}}_i) + \beta\,\tfrac{\text{resale}_i-\text{fee}_i}{10^7}\big]"
              r"\quad\text{s.t.}\ \sum fee_i x_i \le B,\ \sum wage_i x_i \le W,\ \le 1\ \text{на позицию}")
     c = st.columns(3)
-    budget = c[0].slider("Трансферный бюджет, €M", 0, 150, int(C.BUDGET_FEE_EUR / 1e6)) * 1e6
-    wage = c[1].slider("Лимит новых зарплат, €k/нед", 20, 500, int(C.BUDGET_WAGE_WEEK_EUR / 1e3)) * 1e3
+    budget = c[0].slider("Трансферный бюджет, €M", 0, int(C.BUDGET_FEE_EUR / 1e6 * 2.5),
+                         int(C.BUDGET_FEE_EUR / 1e6), key=f"b_{club_key}") * 1e6
+    wage = c[1].slider("Лимит новых зарплат, €k/нед", 20, int(C.BUDGET_WAGE_WEEK_EUR / 1e3 * 2.5),
+                       int(C.BUDGET_WAGE_WEEK_EUR / 1e3), key=f"w_{club_key}") * 1e3
     k = c[2].slider("Максимум покупок", 1, 6, 4)
     c = st.columns(3)
     beta = c[0].slider("β: вес перепродажи", 0.0, 2.0, 0.5, 0.1)
     rho = c[1].slider("ρ: неприятие риска", 0.0, 3.0, 1.0, 0.1)
     groups = c[2].multiselect("Позиции", list(C.FORMATION), need_groups, format_func=lambda x: C.GROUP_NAMES[x])
     sells = squad[squad.action.str.startswith("Продать")]
-    chosen = st.multiselect("Продать (деньги добавятся к бюджету)", sells.short_name.tolist(), sells.short_name.tolist())
+    chosen = st.multiselect("Продать (деньги добавятся к бюджету)", sells.short_name.tolist(), sells.short_name.tolist(),
+                            key=f"s_{club_key}")
     income = sells[sells.short_name.isin(chosen)].value_eur.sum()
     plan = decision.optimize(cand, budget=budget, wage_budget=wage, groups=groups or None,
                              max_signings=k, beta=beta, risk_aversion=rho, sales_income=income,
-                             depth_groups=[g for g in depth_groups if g in groups])
+                             depth_groups=[g for g in depth_groups if g in groups], **CORE)
     m = st.columns(4)
     m[0].metric("Доступно", M(budget + income), f"+{M(income)} от продаж" if income else None)
     m[1].metric("Потрачено", M(plan.fee.sum()) if len(plan) else "€0")
@@ -242,18 +253,20 @@ elif page == "Оптимизатор трансферов":
             after[r_.group] = vals.mean()
         fig = go.Figure([go.Bar(name="Сейчас", x=[C.GROUP_NAMES[g] for g in before.index], y=before, marker_color=GREY),
                          go.Bar(name="После покупок", x=[C.GROUP_NAMES[g] for g in after.index], y=after, marker_color=BLUE)])
-        fig.update_layout(barmode="group", height=340, yaxis_range=[65, 85], margin=dict(t=10))
+        lo = min(before.min(), after.min())
+        fig.update_layout(barmode="group", height=340, yaxis_range=[lo - 5, max(after.max(), before.max()) + 2],
+                          margin=dict(t=10))
         st.plotly_chart(fig, use_container_width=True)
     st.subheader("Сценарии бюджета")
     sc = decision.budget_scenarios(cand, groups or need_groups, depth_groups=depth_groups, max_signings=k,
-                                   beta=beta, risk_aversion=rho)
+                                   beta=beta, risk_aversion=rho, **CORE)
     st.dataframe(sc.style.format({"budget_share": "{:.0%}", "budget_eur": M, "fee": M, "net_value": M,
                                   "gain": "{:.1f}", "utility": "{:.1f}"}), hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 elif page == "Проверка качества":
     st.title("Почему результатам можно доверять (и где нельзя)")
-    t = st.tabs(["Модель развития", "Модель цены", "Похожие игроки", "Переходы в АПЛ", "Кластеры"])
+    t = st.tabs(["Модель развития", "Модель цены", "Похожие игроки", f"Переходы в {C.LEAGUE}", "Кластеры"])
     with t[0]:
         st.dataframe(pd.read_csv(C.OUT / "growth_metrics.csv", index_col=0).style.format(precision=3))
         st.image(str(C.FIG / "04_growth_metrics.png"))

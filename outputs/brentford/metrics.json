@@ -4,6 +4,7 @@
     "duplicates_player_version": 0,
     "missing_value_or_club": 2065,
     "league_name_clashes": 12877,
+    "club_name_clashes": 102,
     "unknown_position": 0,
     "missing_attrs_cells": 32242,
     "value_skew": 8.504224260717717,

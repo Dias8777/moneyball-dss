@@ -1,6 +1,6 @@
 """
 Аудит состава: профиль стиля клуба, соответствие роли (role fit),
-сравнение с остальными клубами АПЛ по позициям, правила продажи/аренды.
+сравнение с клубами-ориентирами по позициям, правила продажи/аренды.
 """
 import numpy as np
 import pandas as pd
@@ -11,15 +11,17 @@ from . import config as C
 # ---------------------------------------------------------------------------
 # Стиль клуба (data-driven)
 # ---------------------------------------------------------------------------
-def squad(snap: pd.DataFrame, club=C.CLUB) -> pd.DataFrame:
+def squad(snap: pd.DataFrame, club=None) -> pd.DataFrame:
+    club = club or C.CLUB
     return snap[snap.club_name == club].copy()
 
 
-def style_profile(snap: pd.DataFrame, club=C.CLUB, league=C.LEAGUE, top_n=18) -> pd.Series:
+def style_profile(snap: pd.DataFrame, club=None, league=None, top_n=18) -> pd.Series:
     """
     Средний z-score игроков клуба относительно игроков ТОЙ ЖЕ позиционной группы в лиге.
     Сравнение внутри позиции убирает эффект состава (у кого больше защитников — у того «выше heading»).
     """
+    club, league = club or C.CLUB, league or C.LEAGUE
     lg = snap[(snap.league_name == league) & (snap.group != "GK")]
     attrs = C.OUTFIELD_ATTRS
     mu = lg.groupby("group")[attrs].transform("mean")
@@ -31,7 +33,8 @@ def style_profile(snap: pd.DataFrame, club=C.CLUB, league=C.LEAGUE, top_n=18) ->
     return z[z.club_name == club][attrs].mean().sort_values(ascending=False)
 
 
-def league_style_matrix(snap: pd.DataFrame, league=C.LEAGUE) -> pd.DataFrame:
+def league_style_matrix(snap: pd.DataFrame, league=None) -> pd.DataFrame:
+    league = league or C.LEAGUE
     clubs = snap[snap.league_name == league].club_name.unique()
     return pd.DataFrame({c: style_profile(snap, c, league) for c in clubs}).T
 
@@ -94,9 +97,10 @@ def starters(club_df: pd.DataFrame, col="club_rating") -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def league_position_table(fit: pd.DataFrame, league=C.LEAGUE, col="club_rating") -> pd.DataFrame:
-    """Для каждого клуба и группы — средний рейтинг стартовых игроков и место в лиге."""
-    lg = fit[fit.league_name == league]
+def league_position_table(fit: pd.DataFrame, leagues=None, col="club_rating") -> pd.DataFrame:
+    """Для каждого клуба лиг-ориентиров и группы — средний рейтинг стартовых игроков и место."""
+    leagues = leagues or C.BENCH_LEAGUES
+    lg = fit[fit.league_name.isin(leagues) | (fit.club_name == C.CLUB)]
     recs = []
     for club, cdf in lg.groupby("club_name"):
         for g, n in C.FORMATION.items():
@@ -109,19 +113,20 @@ def league_position_table(fit: pd.DataFrame, league=C.LEAGUE, col="club_rating")
     return t
 
 
-def needs(table: pd.DataFrame, club=C.CLUB, top_k=6) -> pd.DataFrame:
+def needs(table: pd.DataFrame, club=None, top_k=None) -> pd.DataFrame:
     """
-    Слабые места: разрыв между стартовым уровнем клуба и уровнем 6-го клуба лиги
-    (реалистичная цель Брентфорда — бороться за еврокубки).
+    Слабые места: разрыв между стартовым уровнем клуба и уровнем цели — top_k-го по силе
+    соперника (Брентфорд: 6-й клуб АПЛ; Ливерпуль: лучший соперник; ПСЖ: 3-й клуб топ-5 лиг).
     """
+    club, top_k = club or C.CLUB, top_k or C.TARGET_RANK
     rows = []
     for g in C.FORMATION:
         t = table[table.group == g].sort_values("start", ascending=False)
-        bench = t.start.iloc[top_k - 1]
+        bench = t[t.club != club].start.iloc[top_k - 1]
         me = t[t.club == club].iloc[0]
         rows.append({"group": g, "name": C.GROUP_NAMES[g], "club_start": me.start,
                      "club_depth": me.depth, "league_rank": int(me["rank"]),
-                     "target_top6": bench, "gap": bench - me.start,
+                     "target": bench, "gap": bench - me.start,
                      # глубина: насколько запасной хуже стартера (травма/дисквалификация = провал)
                      "depth_drop": me.start - me.depth,
                      "league_depth_drop": (t.start - t.depth).median()})
@@ -129,7 +134,7 @@ def needs(table: pd.DataFrame, club=C.CLUB, top_k=6) -> pd.DataFrame:
 
 
 def need_groups(need: pd.DataFrame, top_gap=3, depth_mult=2.0) -> list:
-    """Нужда = 3 позиции с наибольшим отставанием от топ-6 + позиции, где нет замены
+    """Нужда = 3 позиции с наибольшим отставанием от цели + позиции, где нет замены
     (запасной хуже стартера более чем вдвое сильнее, чем в среднем по лиге)."""
     by_gap = need.group.head(top_gap).tolist()
     by_depth = need[need.depth_drop > depth_mult * need.league_depth_drop].group.tolist()

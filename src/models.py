@@ -131,11 +131,12 @@ def predict_growth(models, cur: pd.DataFrame) -> pd.DataFrame:
     }, index=cur.index)
 
 
-def league_move_effect(p: pd.DataFrame, to_league=C.LEAGUE, min_n=15) -> pd.DataFrame:
+def league_move_effect(p: pd.DataFrame, to_league=None, min_n=15) -> pd.DataFrame:
     """
-    Скрытая закономерность: что происходит с рейтингом игрока после перехода в АПЛ из лиги X,
+    Скрытая закономерность: что происходит с рейтингом игрока после перехода в лигу клуба из лиги X,
     сверх того, что ожидалось по его возрасту и данным (out-of-fold остатки модели).
     """
+    to_league = to_league or C.LEAGUE
     X, y = p[GROWTH_FEATURES], p.delta
     oof = np.zeros(len(p))
     for tr, te in GroupKFold(5).split(X, y, p.player_id):
@@ -145,7 +146,7 @@ def league_move_effect(p: pd.DataFrame, to_league=C.LEAGUE, min_n=15) -> pd.Data
     stay = p[(p.league_next == to_league) & (p.league_name == to_league)]
     t = mv.groupby("league_name").agg(n=("resid", "size"), resid=("resid", "mean"),
                                       delta=("delta", "mean")).query("n >= @min_n")
-    t.loc["(остались в АПЛ)"] = [len(stay), stay.resid.mean(), stay.delta.mean()]
+    t.loc["(остались в лиге)"] = [len(stay), stay.resid.mean(), stay.delta.mean()]
     return t.sort_values("resid")
 
 

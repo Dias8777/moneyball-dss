@@ -2,19 +2,50 @@
 Глобальные настройки проекта: пути, клуб, тактическая схема, бюджет, роли.
 Все допущения собраны здесь, чтобы их было легко показать и изменить на защите.
 """
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = ROOT / "data" / "male_players_legacy.csv"
 DATA_CACHE = ROOT / "data" / "players_clean.parquet"
-OUT = ROOT / "outputs"
-FIG = OUT / "figures"
 
 # ---------------------------------------------------------------------------
-# Контекст решения
+# Контекст решения: профили клубов. Всё, что отличает один клуб от другого, — здесь.
+# Цель (target_rank) — k-й по силе клуб среди СОПЕРНИКОВ в bench_leagues (без самого клуба).
 # ---------------------------------------------------------------------------
-CLUB = "Brentford"
-LEAGUE = "Premier League"
+TOP5 = ["Premier League", "La Liga", "Bundesliga", "Serie A", "Ligue 1"]
+CLUBS = {
+    "brentford": dict(
+        club="Brentford", league="Premier League", name="Брентфорд", dat="Брентфорду",
+        bench_leagues=["Premier League"], target_rank=6, target_label="6-й клуб АПЛ",
+        goal="бороться за еврокубки", budget=60_000_000, wage=200_000,
+        note="Клуб с ограниченным бюджетом: прямой силовой футбол Томаса Франка."),
+    "liverpool": dict(
+        club="Liverpool", league="Premier League", name="Ливерпуль", dat="Ливерпулю",
+        bench_leagues=["Premier League"], target_rank=1, target_label="лучший соперник в АПЛ",
+        goal="вернуться в борьбу за титул с «Манчестер Сити»", budget=150_000_000, wage=1_000_000,
+        note="Претендент на титул: после сезона 2021/22 стареет центр поля."),
+    "psg": dict(
+        club="Paris Saint Germain", league="Ligue 1", name="ПСЖ", dat="ПСЖ",
+        bench_leagues=TOP5, target_rank=3, target_label="3-й клуб топ-5 лиг Европы",
+        goal="выиграть Лигу чемпионов", budget=200_000_000, wage=1_500_000,
+        note="Чемпион Франции без конкурентов в лиге, поэтому цель — элита Европы."),
+}
+
+
+def use(key: str):
+    """Переключить контекст на клуб: все модули читают C.CLUB, C.OUT и т.д. в момент вызова."""
+    global CLUB_KEY, CLUB, LEAGUE, CLUB_RU, CLUB_DAT, BENCH_LEAGUES, TARGET_RANK, TARGET_LABEL
+    global GOAL, BUDGET_FEE_EUR, BUDGET_WAGE_WEEK_EUR, OUT, FIG
+    p = CLUBS[key]
+    CLUB_KEY, CLUB, LEAGUE = key, p["club"], p["league"]
+    CLUB_RU, CLUB_DAT, GOAL = p["name"], p["dat"], p["goal"]
+    BENCH_LEAGUES, TARGET_RANK, TARGET_LABEL = p["bench_leagues"], p["target_rank"], p["target_label"]
+    BUDGET_FEE_EUR, BUDGET_WAGE_WEEK_EUR = p["budget"], p["wage"]
+    OUT = ROOT / "outputs" / key
+    FIG = OUT / "figures"
+
+
 CURRENT_VERSION = 23          # FIFA 23 = состояние на сентябрь 2022 (сезон 2022/23)
 FIRST_VERSION = 15
 
@@ -38,8 +69,7 @@ POS_TO_GROUP = {
 # ---------------------------------------------------------------------------
 # Финансовые допущения (FIFA-стоимость ≠ реальная трансферная цена!)
 # ---------------------------------------------------------------------------
-BUDGET_FEE_EUR = 60_000_000        # бюджет на трансферы (допущение)
-BUDGET_WAGE_WEEK_EUR = 200_000     # лимит суммарной новой недельной зарплаты (допущение)
+# Бюджет трансферов и лимит новых зарплат в неделю — в профиле клуба (допущения)
 FEE_PREMIUM = 1.3                  # клубы АПЛ переплачивают относительно оценки (допущение)
 CONTRACT_YEARS = 4                 # длина нового контракта
 WAGE_FLOOR_SHARE = 0.8             # новичок получает не меньше 80% медианы зарплат клуба
@@ -104,3 +134,5 @@ STYLE_TILT = 0.5   # насколько профиль стиля клуба с�
 UNLICENSED_LEAGUES = ["Serie A (Brazil)"]
 
 RANDOM_STATE = 42
+
+use(os.environ.get("MONEYBALL_CLUB", "brentford"))

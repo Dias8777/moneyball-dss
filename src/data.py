@@ -51,6 +51,17 @@ def clean(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     df.loc[clash, "league_name"] = df.league_name + " #" + df.league_id.astype("Int64").astype(str)
     df["league_name"] = df.league_name.replace(LEAGUE_ALIASES)
 
+    # Одинаковые названия у разных клубов («Liverpool» — Англия и Уругвай) в одной версии FIFA.
+    # Имя оставляем клубу с самым сильным составом, остальным добавляем лигу.
+    cl = df.groupby(["fifa_version", "club_name", "league_name"]).overall.mean().reset_index()
+    cl["n"] = cl.groupby(["fifa_version", "club_name"]).league_name.transform("size")
+    cl = cl[cl.n > 1].sort_values("overall", ascending=False)
+    cl["keep"] = ~cl.duplicated(["fifa_version", "club_name"])
+    ren = cl[~cl.keep].set_index(["fifa_version", "club_name", "league_name"]).index
+    hit = pd.MultiIndex.from_frame(df[["fifa_version", "club_name", "league_name"]]).isin(ren)
+    rep["club_name_clashes"] = int(hit.sum())
+    df.loc[hit, "club_name"] = df.club_name + " (" + df.league_name + ")"
+
     df["primary_pos"] = df.player_positions.str.split(",").str[0].str.strip()
     df["group"] = df.primary_pos.map(C.POS_TO_GROUP)
     rep["unknown_position"] = int(df.group.isna().sum())

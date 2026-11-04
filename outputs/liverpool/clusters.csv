@@ -1,0 +1,15 @@
+group,cluster,style,n,k,silhouette,ARI_bootstrap
+GK,GK-0,diving / reflexes / positioning,1063,2,0.22193300861189885,0.9797442678664524
+GK,GK-1,long passing / short passing / composure,985,2,0.22193300861189885,0.9797442678664524
+CB,CB-0,positioning / crossing / curve,1588,2,0.13594962480244327,0.971425855283045
+CB,CB-1,marking awareness / interceptions / standing tackle,1666,2,0.13594962480244327,0.971425855283045
+FB,FB-0,long shots / shot power / finishing,1415,2,0.13323928945929092,0.9793627356768194
+FB,FB-1,sliding tackle / standing tackle / interceptions,1524,2,0.13323928945929092,0.9793627356768194
+DM,DM-0,curve / fk accuracy / volleys,843,2,0.11384500739647073,0.8454099132600981
+DM,DM-1,standing tackle / sliding tackle / marking awareness,715,2,0.11384500739647073,0.8454099132600981
+CM,CM-0,standing tackle / sliding tackle / interceptions,2191,2,0.18925950618275472,0.9856368453479705
+CM,CM-1,dribbling / finishing / ball control,1048,2,0.18925950618275472,0.9856368453479705
+W,W-0,finishing / ball control / dribbling,1728,2,0.14843203068823205,0.9740003939162906
+W,W-1,standing tackle / sliding tackle / interceptions,1068,2,0.14843203068823205,0.9740003939162906
+ST,ST-0,positioning / finishing / shot power,1242,2,0.12297344460923175,0.9715249330906458
+ST,ST-1,acceleration / agility / balance,1368,2,0.12297344460923175,0.9715249330906458
