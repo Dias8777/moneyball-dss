@@ -14,3 +14,6 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 .claude/
+
+# DSS в облаке читает готовый снимок FIFA 23 (3 МБ на клуб); остальные parquet пересобираются пайплайном
+!outputs/*/players_23.parquet
